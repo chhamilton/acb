@@ -3,16 +3,17 @@
 history CSV files.
 """
 
-import common
 import csv
 import datetime
-import sys
+import re
+
+import acb.common
 
 
 MSSB_DATE = re.compile('^[01][0-9]/[0123][0-9]/20\d{2}$')
 MSSB_DOLLAR = re.compile('[^0-9.]')
 MSSB_PLAN_TO_NAME = {
-		'Historical GSU': 'GOOG.presplit',
+		'Historical GSU': 'GOOG',
 		'GSU Class A': 'GOOGL',
 		'GSU Class C': 'GOOG'}
 
@@ -51,13 +52,13 @@ def Process(src, func):
 		
 		# A vesting event with withheld shares.
 		if d.get('Tax Payment Method', None) == 'Withhold to Cover':
-			t = Transaction(
+			t = acb.common.Transaction(
 					date=day,
 					name=MSSB_PLAN_TO_NAME[d['Plan']],
-					type=TRANS_ACQUIRE,
+					type=acb.common.TRANS_ACQUIRE,
 					units=d['Quantity'],
-					value=CurrencyAmount('USD', float(MSSB_DOLLAR.sub('', d['Price']))),
-					fees=CurrencyAmount('USD', 0.0),
+					value=acb.common.CurrencyAmount('USD', float(MSSB_DOLLAR.sub('', d['Price']))),
+					fees=acb.common.CurrencyAmount('USD', 0.0),
 				  withheld=int(float(d['Net Share Proceeds'])))
 			func(t)
 		elif d['Type'] == 'Sale':
@@ -65,12 +66,12 @@ def Process(src, func):
 			v = float(MSSB_DOLLAR.sub('', d['Price']))
 			p = float(MSSB_DOLLAR.sub('', d['Net Cash Proceeds']))
 			f = u * v - p
-			t = Transaction(
+			t = acb.common.Transaction(
 					date=day,
 					name=MSSB_PLAN_TO_NAME[d['Plan']],
-					type=TRANS_SELL,
+					type=acb.common.TRANS_SELL,
 					units=u,
-					value=CurrencyAmount('USD', v),
-					fees=CurrencyAmount('USD', f),
+					value=acb.common.CurrencyAmount('USD', v),
+					fees=acb.common.CurrencyAmount('USD', f),
 					withheld=0)
 			func(t)

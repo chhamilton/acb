@@ -4,9 +4,13 @@
 import csv
 import datetime
 import logging
-import memo
 import os
 import urllib2
+
+import sys
+print sys.path
+
+import acb.memo
 
 
 LOGGER = logging.getLogger(__name__)
@@ -18,8 +22,9 @@ BOC_URL = ('http://www.bankofcanada.ca/stats/results//csv?lP='
 				   'lookup_daily_exchange_rates.php'
            '&sR=2005-03-02&se=_0101-_0102-_0103-_0104&dF=%Y-%m-%d&dT=')
 
-@memo.memo
-@memo.memosql
+
+@acb.memo.memo
+@acb.memo.memosql
 def GetUsdToCadRateTable(date):
 	"""Gets the full table of USD -> CAD currency rates.
 	
@@ -119,4 +124,4 @@ if __name__ == '__main__':
 	print GetConversionRate('USD', 'CAD', datetime.datetime(year=2014, month=12, day=31), 'high')
 	print GetConversionRate('USD', 'CAD', datetime.datetime(year=2014, month=12, day=31), 'low')
 
-	memo.KillDatabase(GetUsdToCadRateTable)
+	acb.memo.KillDatabase(GetUsdToCadRateTable)
