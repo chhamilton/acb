@@ -52,14 +52,35 @@ def Process(src, func):
 		
 		# A vesting event with withheld shares.
 		if d.get('Tax Payment Method', None) == 'Withhold to Cover':
+			# The stock symbol.
+			s = MSSB_PLAN_TO_NAME[d['Plan']]
+			# The number of shares that vested.
+			u = int(d['Quantity'])
+			# The vesting price.
+			v = float(MSSB_DOLLAR.sub('', d['Price']))
+			# Remaining shares after the withhold.
+			r = int(float(d['Net Share Proceeds']))
+			# The number of withheld shares.
+			w = u - r
+
+			# Emit a sell transaction for the tax withholding.
 			t = acb.common.Transaction(
 					date=day,
-					name=MSSB_PLAN_TO_NAME[d['Plan']],
+					symbol=s,
+					type=acb.common.TRANS_SELL,
+					units=w,
+					value=acb.common.CurrencyAmount('USD', v),
+					fees=acb.common.CurrencyAmount('USD', 0.0))
+			func(t)
+
+			# Emit a acquisition transaction.
+			t = acb.common.Transaction(
+					date=day,
+					symbol=s,
 					type=acb.common.TRANS_ACQUIRE,
-					units=d['Quantity'],
-					value=acb.common.CurrencyAmount('USD', float(MSSB_DOLLAR.sub('', d['Price']))),
-					fees=acb.common.CurrencyAmount('USD', 0.0),
-				  withheld=int(float(d['Net Share Proceeds'])))
+					units=u,
+					value=acb.common.CurrencyAmount('USD', v),
+					fees=acb.common.CurrencyAmount('USD', 0.0))
 			func(t)
 		elif d['Type'] == 'Sale':
 			u = int(d['Quantity'])
@@ -68,10 +89,9 @@ def Process(src, func):
 			f = u * v - p
 			t = acb.common.Transaction(
 					date=day,
-					name=MSSB_PLAN_TO_NAME[d['Plan']],
+					symbol=MSSB_PLAN_TO_NAME[d['Plan']],
 					type=acb.common.TRANS_SELL,
 					units=u,
 					value=acb.common.CurrencyAmount('USD', v),
-					fees=acb.common.CurrencyAmount('USD', f),
-					withheld=0)
+					fees=acb.common.CurrencyAmount('USD', f))
 			func(t)

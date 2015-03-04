@@ -7,9 +7,7 @@ import logging
 import os
 import urllib2
 
-import sys
-print sys.path
-
+import acb.common
 import acb.memo
 
 
@@ -21,6 +19,18 @@ LOGGER = logging.getLogger(__name__)
 BOC_URL = ('http://www.bankofcanada.ca/stats/results//csv?lP='
 				   'lookup_daily_exchange_rates.php'
            '&sR=2005-03-02&se=_0101-_0102-_0103-_0104&dF=%Y-%m-%d&dT=')
+
+# The table of currencies is provided in the following order.
+WHENS = ['noon', 'close', 'high', 'low']
+
+
+def WhenToIndex(when):
+	"""Converts a 'when' value to an index in a currency table."""
+	try:
+		idx = WHENS.index(when) + 1
+		return idx
+	except ValueError:
+		raise Exception('Invalid when: %s' % when)
 
 
 @acb.memo.memo
@@ -77,6 +87,10 @@ def GetConversionRateTable(currency_from, currency_to, date):
 		
 			(date, noon, close, high, low)
 	"""
+	# Handle no-op conversions.
+	if currency_from == currency_to:
+		return [date, 1.0, 1.0, 1.0, 1.0]
+
 	if currency_from == 'USD' and currency_to == 'CAD':
 		rates = GetUsdToCadRateTable(date)
 		return rates
@@ -103,15 +117,35 @@ def GetConversionRate(currency_from, currency_to, date, when='noon'):
 		The value of one unit of |currency_from| in |currency_to|, at the provided
 		time |when|.
 	"""
-	try:
-		idx = ['noon', 'close', 'high', 'low'].index(when) + 1
-	except ValueError:
-		raise Exception('Invalid when: %s' % when)
+	idx = WhenToIndex(when)
 	
 	rates = GetConversionRateTable(currency_from, currency_to, date)
 	return rates[idx]
 
-		
+
+def Convert(currency_amount, currency_to, date, when='noon'):
+	"""Performs a currency conversion."""
+	# Handle no-op conversions.
+	if currency_amount.currency == currency_to:
+		return currency_amount
+
+	# Handle conversion of no value.
+	if currency_amount.amount == 0:
+		return acb.common.CurrencyAmount(
+				currency_to, 0.0)
+
+	# Do the full conversion.
+	rates = GetConversionRateTable(
+			currency_amount.currency,
+			currency_to,
+			date)
+	idx = WhenToIndex(when)
+	rate = rates[idx]
+	value = acb.common.CurrencyAmount(
+			currency_to, currency_amount.amount * rate)
+	return value
+
+
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG)
 

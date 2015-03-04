@@ -26,13 +26,24 @@ TRANS_SELL = 'SELL'
 
 # Transactions are a named tuple with fields as follows:
 #   date: A datetime object.
-#   name: The name of the property (usually ticker symbol).
+#   symbol: The name of the property (usually ticker symbol).
 #   type: The type of the transaction, from the TRANS_ enum. 
 #   units: The number of items of property involved in the transaction.
 #   value: Per property item value, as a CurrencyAmount.
 #   fees: Any fees associated with the transaction, as a CurrencyAmount.
-#   withheld: A number of shares withheld for tax purposes. This is only
-#             filled out for an ACQUIRE transaction.
 Transaction = namedtuple(
 		'Transaction',
-		'date name type units value fees withheld')
+		'date symbol type units value fees')
+
+
+def TransactionComparator(tx1, tx2):
+	"""Transaction comparator.
+	
+	Stably sorts by increasing dates.
+	"""
+	if tx1.date < tx2.date:
+		return -1
+	elif tx1.date == tx2.date:
+		return 0
+	else:
+		return 1
