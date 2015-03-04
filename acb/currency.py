@@ -4,15 +4,9 @@
 import csv
 import datetime
 import logging
-import os
-import sys
-import urllib2
-
-# Local imports.
-SELF_DIR = os.path.abspath(os.path.dirname(__file__))
-if sys.path[0] != SELF_DIR:
-	sys.path.insert(0, SELF_DIR)
 import memo
+import os
+import urllib2
 
 
 LOGGER = logging.getLogger(__name__)
