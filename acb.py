@@ -105,11 +105,16 @@ def SumShares(shares):
 	return net
 
 
-def ProcessTransactions(txs, whens):
+def ProcessTransactions(txs, whens, display=False):
 	"""Process the list of transactions, using the provided conversion rates."""
 	acbs = {}
 	cgs = {}
 	shares = {}
+
+	# An event is a capital gains/loss generating sale. Multiple events that occur
+	# for the same property type on the same day can be folded.
+	events = {}
+	
 	for tx in txs:
 		# Handle transaction functors.
 		if type(tx) == TransactionFunctor:
@@ -163,8 +168,44 @@ def ProcessTransactions(txs, whens):
 				pass
 			else:
 				cgs[y] += cg
+			
+				if cg != 0 and display:
+					# Ensure there's an event for this day and property.
+					if tx.date not in events:
+						events[tx.date] = {}
+					if tx.symbol not in events[tx.date]:
+						events[tx.date][tx.symbol] = {
+							'units': 0,
+							'acquisition': buy_date,
+							'proceeds': 0,
+							'acb': 0,
+							'expenses': 0,
+							'lots': 0,
+						}
+
+					# Get the existing event.
+					evt = events[tx.date][tx.symbol]
+					evt['units'] += tx.units
+					evt['acquisition'] = max(evt['acquisition'], buy_date)
+					evt['proceeds'] += (value.amount * tx.units)
+					evt['acb'] += (cost_per_unit * tx.units)
+					evt['expenses'] += fees.amount
+					evt['lots'] += 1
 
 		acbs[tx.symbol] = a
+
+	for date in sorted(events.keys()):
+		for prop in sorted(events[date].keys()):
+			evt = events[date][prop]
+			print '\nCapital Gains/Loss Event'
+			print 'Property   : %s' % prop
+			print 'Units      : %.2f' % evt['units']
+			print 'Acquisition: %s' % evt['acquisition'].strftime('%d-%m-%Y')
+			print 'Disposition: %s' % date.strftime('%d-%m-%Y')
+			print 'Proceeds   : $%.2f' % evt['proceeds']
+			print 'ACB        : $%.2f' % evt['acb']
+			print 'Expenses   : $%.2f' % evt['expenses']
+			print 'Lots       : %d' % evt['lots']
 	
 	# Return the summarys status after processing the shares.
 	return (acbs, cgs, shares)
@@ -251,7 +292,7 @@ if __name__ == '__main__':
 	# process buys until there's just enough.
 	
 	txs = sorted(txs, acb.common.TransactionComparator)
-
+	
 	print 'Minimizing capital gains...'
 	whens = {}
 	for y in xrange(2012, 2015):
@@ -263,5 +304,5 @@ if __name__ == '__main__':
 	print ''
 		
 	# Process the transactions using the optimized whens.
-	acbs, cgs, shares = ProcessTransactions(txs, whens)
+	acbs, cgs, shares = ProcessTransactions(txs, whens, display=True)
 	PrintSummary(acbs, cgs, shares)
