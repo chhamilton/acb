@@ -37,7 +37,7 @@ def Process(src, func):
     if len(row) > 0 and row[0] == 'Date':
       break
   header = row
-  
+
   # Read the records.
   for row in reader:
     # Continue as long as we encounter valid records.
