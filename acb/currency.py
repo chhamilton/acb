@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 """Utility functions for retrieving currency conversion rates online."""
 
+import copy
 import csv
 import datetime
 import logging
 import os
+import re
 import urllib2
 
 import acb.common
@@ -31,6 +33,10 @@ BOC_MONTHLY_URL = ('http://www.bankofcanada.ca/stats/results//csv?endRange='
     'lookup_monthly_exchange_rates.php&sR=2005-04-01&se=L_IEXM0101-L_IEXM0102-'
     'L_IEXM0103-L_IEXM0104-L_IEXM0105-L_IEXM0106')
 
+BOC_YEARLY_NOONS_URL =('http://www.bankofcanada.ca/stats/results/csv?lP='
+                       'lookup_daily_exchange_rates.php&sR=2006-06-15&se=_0101&'
+                       'dF=%(year)d-01-01&dT=%(year)d-12-31')
+
 BOC_MONTHLY_WHENS = ('monthly noon', 'monthly close', 'monthly high',
                      'monthly low', '90-day noon', '90-day close')
 
@@ -54,12 +60,15 @@ def GetUsdToCadDailyRateTable(date):
   
   Returns:
     A list of (date, noon, close, high, low) rates. The date may be earlier
-    than the requested date due if the requested day is a bank holiday.
+    than the requested date due if the requested day is a bank holiday or a
+    weekend.
   
   Note:
     This function is memoized to memory and to a persistent database.
   """
   url = date.strftime(BOC_DAILY_URL)
+  if date.strftime('%Y-%m-%d') == '2015-04-25':
+    LOGGER.setLevel(logging.DEBUG)
   LOGGER.debug('Requesting Bank of Canada USD to CAD daily rates for %s.', date)
   reader = csv.reader(urllib2.urlopen(url))
   for row in reader:
@@ -120,6 +129,24 @@ def GetUsdToCadMonthlyRateTable(date):
       return rates
   
   raise Exception('Rates not found in downloaded data.')
+
+
+@acb.memo.memo
+@acb.memo.memosql
+def GetUsdToCadNoonRateTableForYear(year):
+  url = BOC_YEARLY_NOONS_URL % {'year':year}
+  LOGGER.debug('Requesting Bank of Canada USD to CAD noon rates for %d.', year)
+  reader = csv.reader(urllib2.urlopen(url))
+  rates = {}
+  for row in reader:
+    if len(row) != 2:
+      continue
+    date = row[0].strip()
+    rate = row[1].strip()
+    if re.match('^\d+\.\d+$', rate):
+      rate = float(rate)
+      rates[date] = rate
+  return rates
 
 
 def GetUsdToCadRateTable(date):
@@ -199,6 +226,17 @@ def GetConversionRate(currency_from, currency_to, date, when='daily noon'):
     The value of one unit of |currency_from| in |currency_to|, at the provided
     time |when|.
   """
+  if when == 'daily noon':
+    rates = None
+    d = copy.deepcopy(date)
+    while True:
+      if d.year != date.year or rates == None:
+        rates = GetUsdToCadNoonRateTableForYear(d.year)
+      s = d.strftime('%Y-%m-%d')
+      if s in rates:
+        return rates[s]
+      d -= datetime.timedelta(days=1)
+
   rates = GetConversionRateTable(currency_from, currency_to, date)
   if when not in rates:
     raise Exception('Invalid rate type.')
@@ -217,11 +255,7 @@ def Convert(currency_amount, currency_to, date, when='daily noon'):
         currency_to, 0.0)
 
   # Get the full conversion rate table.
-  rates = GetConversionRateTable(
-      currency_amount.currency,
-      currency_to,
-      date)
-  rate = rates[when]
+  rate = GetConversionRate(currency_amount.currency, currency_to, date, when)
   value = acb.common.CurrencyAmount(
       currency_to, currency_amount.amount * rate)
   return value

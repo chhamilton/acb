@@ -45,9 +45,9 @@ def TransactionComparator(tx1, tx2):
 	
 	Stably sorts by increasing dates.
 	"""
-	if tx1.date < tx2.date:
+	if tx1.settlement_date < tx2.settlement_date:
 		return -1
-	elif tx1.date == tx2.date:
+	elif tx1.settlement_date == tx2.settlement_date:
 		return 0
 	else:
 		return 1
