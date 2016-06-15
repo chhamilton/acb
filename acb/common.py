@@ -22,6 +22,10 @@ TRANS_ACQUIRE = 'ACQUIRE'
 TRANS_BUY = 'BUY'
 # Market sell of a property.
 TRANS_SELL = 'SELL'
+# Return of capital.
+TRANS_CAPITAL_RETURN = 'CAPITAL_RETURN'
+# Dividends.
+TRANS_DIVIDEND = 'DIVIDEND'
 
 
 # Transactions are a named tuple with fields as follows:
@@ -33,7 +37,7 @@ TRANS_SELL = 'SELL'
 #   fees: Any fees associated with the transaction, as a CurrencyAmount.
 Transaction = namedtuple(
 		'Transaction',
-		'date symbol type units value fees')
+		'date settlement_date symbol type units value fees')
 
 
 def TransactionComparator(tx1, tx2):
