@@ -35,7 +35,7 @@ BOC_MONTHLY_URL = ('http://www.bankofcanada.ca/stats/results//csv?endRange='
 
 BOC_YEARLY_NOONS_URL =('http://www.bankofcanada.ca/stats/results/csv?lP='
                        'lookup_daily_exchange_rates.php&sR=2006-06-15&se=_0101&'
-                       'dF=%(year)d-01-01&dT=%(year)d-12-31')
+                       'dF=%(year)d-01-01&dT=%(year)d-%(month)02d-%(day)02d')
 
 BOC_MONTHLY_WHENS = ('monthly noon', 'monthly close', 'monthly high',
                      'monthly low', '90-day noon', '90-day close')
@@ -134,7 +134,16 @@ def GetUsdToCadMonthlyRateTable(date):
 @acb.memo.memo
 @acb.memo.memosql
 def GetUsdToCadNoonRateTableForYear(year):
-  url = BOC_YEARLY_NOONS_URL % {'year':year}
+  # If we're midway through a year then cap the end date.
+  month = 12
+  day = 31
+  today = datetime.datetime.now()
+  if today.year == year:
+    month = today.month
+    day = today.day
+    print (year, month, day)
+
+  url = BOC_YEARLY_NOONS_URL % {'year':year, 'month':month, 'day':day}
   LOGGER.debug('Requesting Bank of Canada USD to CAD noon rates for %d.', year)
   reader = csv.reader(urllib2.urlopen(url))
   rates = {}
@@ -146,6 +155,8 @@ def GetUsdToCadNoonRateTableForYear(year):
     if re.match('^\d+\.\d+$', rate):
       rate = float(rate)
       rates[date] = rate
+  if len(rates) == 0:
+    raise Exception('Failed to fetch annual list of daily rates.')
   return rates
 
 

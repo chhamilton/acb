@@ -125,6 +125,10 @@ def ProcessTransactions(txs, display=False):
   cgs = {}
   shares = {}
 
+  # ACBs in the original currency of the property. This doesn't reflect
+  # transaction fees, but rather only the acquisition costs.
+  acbs2 = {}
+
   # An event is a capital gains/loss generating sale. Multiple events that occur
   # for the same property type on the same day can be folded.
   events = {}
@@ -143,6 +147,7 @@ def ProcessTransactions(txs, display=False):
     
     # Ensure there's an ACB entry for this symbol.
     a = acbs.get(tx.symbol, AdjustedCostBase(0.0, 0.0))
+    a2 = acbs2.get(tx.symbol, AdjustedCostBase(0.0, 0.0))
     
     # Ensure there's a capital gains entry for this year.
     y = date.year
@@ -163,6 +168,9 @@ def ProcessTransactions(txs, display=False):
       a = AdjustedCostBase(
           a.units + tx.units,
           a.cost + tx.units * value.amount + fees.amount)
+      a2 = AdjustedCostBase(
+          a2.units + tx.units,
+          a2.cost + tx.units * tx.value.amount)
       PushShares(shares[tx.symbol], tx.units, tx.units * value.amount, date)
     elif tx.type == acb.common.TRANS_SELL:
       (buy_date, washed_units, washed_value) = PopShares(
@@ -176,9 +184,11 @@ def ProcessTransactions(txs, display=False):
       cost_per_unit = a.cost / a.units
       units = max(0, a.units - tx.units)
       cost = max(0, a.cost * units / a.units)
+      cost2 = max(0, a2.cost * units / a2.units)
       
       # Update the ACB.
       a = AdjustedCostBase(units, cost)
+      a2 = AdjustedCostBase(units, cost2)
       
       # Calculate capital gains or losses.
       cg = (value.amount - cost_per_unit) * tx.units - fees.amount
@@ -213,8 +223,11 @@ def ProcessTransactions(txs, display=False):
       value = acb.currency.Convert(
           tx.value, 'CAD', date, DEFAULT_RATE)
       a = acbs[tx.symbol]
+      a2 = acbs2[tx.symbol]
       cost = max(0, a.cost - value.amount)
+      cost2 = max(0, a2.cost - tx.value.amount)
       a = AdjustedCostBase(a.units, cost)
+      a2 = AdjustedCostBase(a.units, cost2)
     elif tx.type == acb.common.TRANS_DIVIDEND:
       # TODO(chrisha): Handle dividends properly. Banks actually issue
       # T3s for this, so not entirely necessary.
@@ -222,8 +235,22 @@ def ProcessTransactions(txs, display=False):
     else:
       raise Exception('Unknown transaction type: %s' % tx.type)
 
-    acbs[tx.symbol] = a
+    # Print each individual transaction.
+    if False:
+      if tx.value.currency != 'CAD':
+        ex = acb.currency.Convert(
+          acb.common.CurrencyAmount('USD', 1.0), 'CAD', date, DEFAULT_RATE)
+        print 'Exchange rate USD -> CAD: $%.4f' % ex.amount
+      print tx
+      if tx.symbol in acbs:
+        print acbs[tx.symbol]
+      print a
+      print '----'
 
+    acbs[tx.symbol] = a
+    acbs2[tx.symbol] = a2
+
+  # Print capital gains/loss events.
   if False:
     for date in sorted(events.keys()):
       for prop in sorted(events[date].keys()):
@@ -254,6 +281,7 @@ def ProcessTransactions(txs, display=False):
       if prop not in props:
         props[prop] = copy.deepcopy(evt)
         props[prop]['transactions'] = 1
+        props[prop]['date'] = date
         del props[prop]['acquisition']
         del props[prop]['lots']
       else:
@@ -263,6 +291,7 @@ def ProcessTransactions(txs, display=False):
         net['acb'] += evt['acb']
         net['expenses'] += evt['expenses']
         net['transactions'] += 1
+        net['date'] = max(net['date'], date)
 
   # Output an annualized list of capital gains events.
   for year in sorted(years.keys()):
@@ -278,24 +307,28 @@ def ProcessTransactions(txs, display=False):
       print 'Expenses    : $%.2f' % evt['expenses']
       print 'Transactions: %d' % evt['transactions']
       print 'Gains       : $%.2f' % g
+      print 'Date        : %s' % evt['date'].strftime('%Y-%m-%d')
       print ''
 
   # Roll up events by year and property symbol.
       
   
   # Return the summarys status after processing the shares.
-  return (acbs, cgs, shares)
+  return (acbs, acbs2, cgs, shares)
 
 
-def PrintSummary(acbs, cgs, shares):
+def PrintSummary(acbs, acbs2, cgs, shares):
   """Print a summary of the status."""
   print 'Current Adjusted Cost Bases'
   for sym in sorted(acbs.keys()):
     a = acbs[sym]
+    a2 = acbs2[sym]
     if a.units == 0:
       continue
-    print "%s: units=%d cost=%.2f cost_per_unit=%.2f" % (
-        sym, a.units, a.cost, a.cost / a.units)
+    u = a.cost / a.units
+    u2 = a2.cost / a2.units
+    print "%s: units=%d cost=%.2f cost_per_unit=%.2f (%.2f)" % (
+        sym, a.units, a.cost, u, u2)
   print ''
   
   print 'Capital Gains Record'
@@ -337,5 +370,5 @@ if __name__ == '__main__':
   txs = sorted(txs, acb.common.TransactionComparator)
 
   # Process the transactions.
-  acbs, cgs, shares = ProcessTransactions(txs, display=True)
-  PrintSummary(acbs, cgs, shares)
+  acbs, acbs2, cgs, shares = ProcessTransactions(txs, display=True)
+  PrintSummary(acbs, acbs2, cgs, shares)
