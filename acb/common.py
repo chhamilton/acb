@@ -26,6 +26,8 @@ TRANS_SELL = 'SELL'
 TRANS_CAPITAL_RETURN = 'CAPITAL_RETURN'
 # Dividends.
 TRANS_DIVIDEND = 'DIVIDEND'
+# Management fees. These can be deducted as carrying charges.
+TRANS_FEE = 'FEE'
 
 
 # Transactions are a named tuple with fields as follows:

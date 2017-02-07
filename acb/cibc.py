@@ -16,7 +16,8 @@ CIBC_TX_TYPES = {'Sell': acb.common.TRANS_SELL,
                  'Buy': acb.common.TRANS_BUY,
                  'Dividend': acb.common.TRANS_DIVIDEND,
                  # TODO(chrisha): Treat this properly.
-                 'Tax': acb.common.TRANS_DIVIDEND}
+                 'Tax': acb.common.TRANS_DIVIDEND,
+                 'Fee': acb.common.TRANS_FEE}
 CIBC_NUMBER = re.compile('[^0-9.]')
 
 
@@ -25,6 +26,10 @@ def InferSymbol(d):
     return d['Symbol']
 
   desc = d['Description']
+
+  # Handle account fees.
+  if desc.startswith('ACCOUNT MAINTENANCE FEE'):
+    return None
 
   # Handle Horizons ETF.
   if desc.startswith('HORIZONS U S DLR CURRENCY ETF'):
@@ -71,7 +76,7 @@ def Process(src, func):
 
     if tx_type == None:
       # TODO(chrisha): Handle 'Exchange' properly, using a functor.
-      if tt == 'EFT' or tt == 'Transfer' or tt == 'Exchange':
+      if tt == 'EFT' or tt == 'Transfer' or tt == 'Exchange' or tt == 'Fee':
         continue
       print d
       raise Exception('Unknown CIBC transaction type: %s' % tt)
@@ -86,7 +91,7 @@ def Process(src, func):
     day = datetime.datetime.strptime(d['Transaction Date'], '%B %d, %Y')
     sym = InferSymbol(d)
 
-    if tx_type == acb.common.TRANS_DIVIDEND:
+    if tx_type == acb.common.TRANS_DIVIDEND or tx_type == acb.common.TRANS_FEE:
       v = float(CIBC_NUMBER.sub('', d['Amount']))
       t = acb.common.Transaction(
           date=day,

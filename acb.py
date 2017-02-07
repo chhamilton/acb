@@ -132,6 +132,9 @@ def ProcessTransactions(txs, display=False):
   # An event is a capital gains/loss generating sale. Multiple events that occur
   # for the same property type on the same day can be folded.
   events = {}
+
+  # Fees are simply accumulated in a calendar year.
+  carrying_costs = {}
   
   for tx in txs:
     date = tx.settlement_date
@@ -232,6 +235,12 @@ def ProcessTransactions(txs, display=False):
       # TODO(chrisha): Handle dividends properly. Banks actually issue
       # T3s for this, so not entirely necessary.
       continue
+    elif tx.type == acb.common.TRANS_FEE:
+      cad = acb.currency.Convert(tx.value, 'CAD', date, DEFAULT_RATE)
+      y = date.year
+      if y not in carrying_costs:
+        carrying_costs[y] = 0.0
+      carrying_costs[y] += cad.amount
     else:
       raise Exception('Unknown transaction type: %s' % tx.type)
 
@@ -314,10 +323,10 @@ def ProcessTransactions(txs, display=False):
       
   
   # Return the summarys status after processing the shares.
-  return (acbs, acbs2, cgs, shares)
+  return (acbs, acbs2, cgs, shares, carrying_costs)
 
 
-def PrintSummary(acbs, acbs2, cgs, shares):
+def PrintSummary(acbs, acbs2, cgs, shares, carrying_costs):
   """Print a summary of the status."""
   print 'Current Adjusted Cost Bases'
   for sym in sorted(acbs.keys()):
@@ -339,6 +348,16 @@ def PrintSummary(acbs, acbs2, cgs, shares):
     print "%d: capital_gains=%.2f" % (year, cg)
   print "sum : capital_gains=%.2f" % (total_cg)
   print ''
+
+  if len(carrying_costs) > 0:
+    print 'Carrying Costs'
+    total_cc = 0
+    for year in sorted(carrying_costs.keys()):
+      cc = carrying_costs[year]
+      total_cc += cc
+      print "%d: carrying_costs=%.2f" % (year, cc)
+    print "sum : carrying_costs=%.2f" % (total_cc)
+    print ''
 
 
 if __name__ == '__main__':
@@ -370,5 +389,6 @@ if __name__ == '__main__':
   txs = sorted(txs, acb.common.TransactionComparator)
 
   # Process the transactions.
-  acbs, acbs2, cgs, shares = ProcessTransactions(txs, display=True)
-  PrintSummary(acbs, acbs2, cgs, shares)
+  acbs, acbs2, cgs, shares, carrying_costs = ProcessTransactions(
+      txs, display=True)
+  PrintSummary(acbs, acbs2, cgs, shares, carrying_costs)
